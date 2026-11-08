@@ -12,6 +12,7 @@ dependencies = [
 ]
 
 [tool.ruff]
+include = ["*.py", "*.pyi"]
 target-version = "py314"
 line-length = 88
 indent-width = 4

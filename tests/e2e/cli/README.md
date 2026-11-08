@@ -183,3 +183,39 @@ compareの入力不足・同一側への入力重複はCLI-P05、両側JSONと�
 - 計測ケースの参照先にある各入力を実行し、ケース群名だけで検証済みにしないこと。
 - 全形式×全出力先の基本動作と、状態に応じた終了規則の組み合わせを確認すること。
 - 仕様が未確定の内容を、実装の現在の出力やスナップショットで正当化しないこと。
+
+
+## テストコードの実行
+
+Python 3.14以上の環境で、`cqa`コマンドと公開Python APIをインストールしてから実行する。
+テストはpytestを実行しているPython環境のbinディレクトリ、次にPATHから`cqa`を探索する。
+`cqa`が見つからない場合はセットアップエラーとし、成功やスキップとして扱わない。
+
+```bash
+uv run pytest tests/e2e/cli -q
+uv run pytest tests/e2e/cli --collect-only -q
+uv run ruff check tests/e2e/cli
+uv run ruff format --check tests/e2e/cli
+uv run pyright
+```
+
+| ファイル | 主な対応ケース |
+|---|---|
+| `test_analyze.py` | CLI-A: 入力・状態・診断・副作用・再現性 |
+| `test_exclusions.py` | CLI-E / CLI-PE: glob・Git ignore・各比較入力への適用 |
+| `test_size_complexity.py` | CLI-M01〜M03: Size・Complexity・集計 |
+| `test_coupling_cohesion.py` | CLI-M04〜M05: Coupling・Cohesion |
+| `test_duplication.py` | CLI-M06: 閾値・比較規則・独立性・重複SLOC |
+| `test_compare.py` | CLI-P / CLI-C: 比較入力・計算・互換性・状態 |
+| `test_output.py` | CLI-O: 形式・出力先・数値表示・保存失敗・再入力 |
+| `test_details_api.py` | CLI-M01 / CLI-O20 / CLI-I: 詳細参照・計測単位・公開API整合性 |
+| `test_arguments.py` | CLI-V: 不正なコマンド指定 |
+
+各テストのdocstringに対応IDと観点を記載している。この表はケース群の対応表であり、
+各群の全条件が検証済みであることを意味しない。仕様確認待ちの入力は上の確認事項に従う。
+外部ライブラリや再エクスポート等の依存解決は、解決環境・規則の確定後に入力を追加する。
+
+権限テストは実際のOS権限を変更し、実行ユーザーがその制限を回避する環境では理由付きでスキップする。
+CLI-O17は親ディレクトリへの書き込み権限を失わせ、既存結果の保持を検証する。
+容量制限等による書き込み途中の失敗は、再現環境が未整備のため未実施とする。
+Gitケースは一時ディレクトリ内で設定を分離し、ユーザーのGit設定を変更しない。
