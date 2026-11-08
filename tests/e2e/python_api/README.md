@@ -6,11 +6,11 @@
 仕様のSingle Source of Truthは[Code Analysis](../../../docs/features/code-analysis/README.md)とする。
 このREADMEはテスト設計であり、新たなAPIや計測規則を定義しない。
 
-- 公開済みの入口である`from cqa import analyze, compare`を使用する。
-- 入力は実際のソースファイル・ディレクトリと、仕様に従った解析結果とする。
+- 公開入口は`from cqa import analyze, compare, load_analysis_result`と、`cqa`からインポートする公開データモデル・変換メソッドとする。
+- 入力は実際のソースファイル・ディレクトリ、保存済みJSON、公開モデルで作成・変更した解析結果とする。
 - 観測対象は公開された返却値・例外・入力ファイルへの副作用とする。
 - 非公開モジュール、内部クラス、AST、探索順、内部関数の呼び出し回数には依存しない。解析・依存解決・ファイル処理をmockで置き換えない。
-- Pythonの結果を辞書や特定のデータクラスと決めつけず、公開契約に従って値を参照する。以下の`null`は仕様上の計測不能値を表す。
+- 返却値は公開dataclassの属性として参照する。公開された型・フィールド・参照関係を検証し、非公開の表現には依存しない。表中の`null`はPythonでは`None`、JSON変換後は`null`を表す。
 - 期待値は仕様と入力コードから独立して決める。CLIとの一致や、採用ライブラリと同じ値であることだけを合否判定にしない。
 - 各表の行はケース群。同じ行に列挙した入力は個別に実行する。仕様未確定の入力は末尾に分離する。
 
@@ -25,11 +25,11 @@
 
 ## 解析対象とエラー
 
-根拠：[Usage](../../../docs/features/code-analysis/usage.md)、[Targets](../../../docs/features/code-analysis/targets.md)、[Output — Result Status](../../../docs/features/code-analysis/output.md#result-status)。
+根拠：[Python API](../../../docs/features/code-analysis/python-api.md)、[Usage](../../../docs/features/code-analysis/usage.md)、[Targets](../../../docs/features/code-analysis/targets.md)、[Output — Result Status](../../../docs/features/code-analysis/output.md#result-status)。
 
 | ID | 種別 | 条件・操作 | 期待結果 |
 |---|---|---|---|
-| API-A01 | 正常 | `.py`ファイルを`analyze(path)`に渡す | 対象ファイルの値・詳細と`complete`を返す |
+| API-A01 | 正常 | `.py`ファイルを`str`・`Path`の各形式で`analyze(path)`に渡す | 対象ファイルの値・詳細と`complete`を返す |
 | API-A02 | 正常 | 複数階層の`.py`と非対応ファイルを含むディレクトリを渡す | `.py`だけを再帰的に解析し、各ファイルの値とScope集計を返す |
 | API-A03 | 境界 | ファイル・ディレクトリへのリンク、リンクによる循環を探索先に配置する | リンクを追跡せず、リンク先を解析対象に加えない |
 | API-A04 | 正常 | 解析対象と異なる作業ディレクトリから相対・絶対パスで同じ対象を指定する | 同じファイル集合・計測値を返す。Scopeのパス表記自体は固定しない |
@@ -47,9 +47,9 @@
 
 ## 除外条件
 
-根拠：[Targets — Exclusions](../../../docs/features/code-analysis/targets.md#exclusions)。
-APIの除外条件・Git ignore指定の引数名は未定義のため、ケースは振る舞いとして記載する。
-公開された指定方法が確定してから実装し、CLIオプション名からAPI引数を推測しない。
+根拠：[Python API — analyze](../../../docs/features/code-analysis/python-api.md#analyze)、[Targets — Exclusions](../../../docs/features/code-analysis/targets.md#exclusions)。
+`analyze(target, exclude=patterns, use_gitignore=True)`から指定する。
+`exclude`省略時は`()`, `use_gitignore`省略時は`False`として、明示指定と同じ対象集合になることを確認する。
 
 | ID | 種別 | 条件・操作 | 期待結果 |
 |---|---|---|---|
@@ -79,7 +79,7 @@ APIの除外条件・Git ignore指定の引数名は未定義のため、ケー�
 | API-M04 | 正常 | 関数数が異なる2ファイルに、Cyclomaticが`1`と`1,4`の関数を配置する | Scopeの合計6・平均2・最大4。ファイル平均の単純平均1.75にしない |
 | API-M05 | 境界 | 関数なし・クラスなし・依存なし・計測可能なLCOM4なしの入力を個別に解析する | 対象なしの平均・最大は`null`と理由。計数・合計・確定した依存なしは0。正常なゼロを計測不能にしない |
 | API-M06 | 正常 | 通常解析と未解決を含む解析を実行する | ツール版、指標ごとの定義版・設定、計測モデルと版、解析設定・対象・制約を保持する。値自体は特定バージョンに固定しない |
-| API-M07 | 異常 | 正常・失敗ファイルを混在させる | 個別値とScope集計は成功分のみ。エラー情報と`partial`を併記する |
+| API-M07 | 異常 | 正常・失敗ファイルを混在させる | `scope.file_count`は失敗分も含む選択件数。個別計測値とScope集計は成功分のみ。エラー情報と`partial`を併記する |
 
 | 指標 | 取得する単位 | 集計・算出値 |
 |---|---|---|
@@ -207,14 +207,14 @@ SonarSourceに委ねられたCogの論理演算子・再帰・ネスト関数・
 ## 比較
 
 根拠：[Comparison](../../../docs/features/code-analysis/comparison.md)。入口は`compare(before, after)`。
-通常ケースでは`analyze`の返却値を渡す。条件差・欠落値のケースは、公開仕様に沿う保存結果の復元等で入力を用意し、非公開オブジェクトを組み立てない。
+通常ケースでは`analyze`の返却値を渡す。条件差・欠落値のケースは、公開dataclassの構築・フィールド変更、`AnalysisResult.from_dict()`、`load_analysis_result()`で入力を用意する。比較情報の不足は、読み込み時の必須構造の不正と区別する。
 
 | ID | 種別 | 条件・操作 | 期待結果 |
 |---|---|---|---|
 | API-P01 | 正常 | ファイル同士・ディレクトリ同士・ファイルとディレクトリの解析結果を渡す | Scope全体の集計値を比較する |
 | API-P02 | 正常 | 名前・ファイル配置・定義数が異なる結果を比較する | ファイル・関数・クラスの対応付けなしで比較。追加・削除・移動や品質の優劣を自動判定しない |
 | API-P03 | 正常 | 同じ対象を同条件で解析した結果を比較する | 数値項目の差分は0。Before=0の変化率や計測不能項目は下記規則に従う |
-| API-P04 | 境界 | 値の組を(10,5)・(5,10)・(5,5)・(0,5)・(5,0)・(0,0)とする | 差分は-5・5・0・5・-5・0、変化率は-50・100・0・`null`・-100・`null`。ゼロ分母の理由を保持 |
+| API-P04 | 境界 | 値の組を(10,5)・(5,10)・(5,5)・(0,5)・(5,0)・(0,0)・(5,15)とする | 差分は-5・5・0・5・-5・0・10、変化率は-50・100・0・`null`・-100・`null`・200。ゼロ分母の理由を保持 |
 | API-P05 | 境界 | (null,5)・(5,null)・(null,null) | 差分・変化率は`null`。0への置換はせず、計測不能理由を保持 |
 | API-P06 | 正常 | 重複率15%→10% | 差分-5pt、変化率約-33.333…%。数値と単位を区別する |
 | API-P07 | 回帰 | 表示で丸められる値を比較し、Before・Afterも入れ替える | 保持精度で計算。差分は符号反転し、変化率は新しいBefore基準で計算する |
@@ -231,6 +231,9 @@ SonarSourceに委ねられたCogの論理演算子・再帰・ネスト関数・
 | API-P18 | 境界 | 対象0件の結果同士、または対象0件と非空結果を比較する | 空結果の0・null規則に従って項目別に比較する |
 | API-P19 | 正常 | 保存JSONから復元した結果同士、および復元結果とanalyze結果の両方向 | ソースが削除・変更されていても保存値・条件で比較し、詳細・エラー・未解決情報を保持する |
 | API-P20 | 正常 | 通常・部分・未解決を含む結果を比較する | 比較結果にBefore・After全体、差分、比較不能理由、比較条件と状態を保持する |
+| API-P21 | 異常 | Before・Afterそれぞれに辞書・パス文字列・`None`等の`AnalysisResult`以外を渡す | `TypeError`を送出する。パスからの解析や辞書の自動復元はしない |
+| API-P22 | 副作用 | 正常・partial・非互換の各結果を比較前後で確認する | 入力の公開フィールド・入れ子の計測値・詳細・メタデータ・エラー・未解決情報が変更されない |
+| API-P23 | 境界 | 同じ指標のAverageは共通、Maximumのみ片側に欠落させる | Averageは比較し、Maximumは該当指標・集計項目・理由を`incompatible_metrics`で区別できる |
 
 | 指標 | 比較するScopeの項目 |
 |---|---|
@@ -239,6 +242,39 @@ SonarSourceに委ねられたCogの論理演算子・再帰・ネスト関数・
 | Cyclomatic Complexity・Cognitive Complexity | Total・Average・Maximum |
 | Dependency Cycles | グループ数 |
 | Duplication Rate | Scope全体の率 |
+
+## 公開モデル・詳細結果・シリアライズ
+
+根拠：[Python API — Result Classes / Detail Classes / Serialization](../../../docs/features/code-analysis/python-api.md)、[Output — JSON](../../../docs/features/code-analysis/output.md#json)。
+公開モデルの構造・可変性は利用者向けの契約として確認する。ID生成アルゴリズムやデータの格納順には依存しない。
+
+| ID | 種別 | 条件・操作 | 期待結果 |
+|---|---|---|---|
+| API-R01 | 正常 | 仕様に列挙された公開関数・データモデルを`cqa`からインポートし、解析・比較結果を取得する | `AnalysisResult`・`ComparisonResult`と、その構成モデルが仕様のdataclassと公開フィールドで利用できる。コレクションは`dict`・`list` |
+| API-R02 | 正常 | 公開モデルを構築し、公開フィールド、計測値辞書、詳細リストを変更する | 変更が可能で、公開属性から変更内容を読み取れる。フィールド変更を禁止しない |
+| API-R03 | 境界 | 同名再定義、ネストクラス、ローカルクラス、メソッド、ネスト関数を含むソースを解析する | `details.files/classes/functions`のフラットな各リストに各定義が1回だけ現れる。IDは結果内で一意。`file_id`は既存File、`parent_id`は直接の親のClass/Functionを参照し、ファイル直下は`None` |
+| API-R04 | 境界 | デコレータ付き`def`・`async def`・`class`、非ASCII識別子を含む行に定義を配置する | `name`と定義文の`line`（1始まり）・`column`（0始まりのUTF-8バイトオフセット）が一致。先頭デコレータの位置と混同しない。IDの内部書式は固定しない |
+| API-R05 | 正常 | 確定依存・未解決を持つクラス／ファイルと、依存なしの入力を解析する | CBOはClass、Fan-outはFileの`CouplingMetricDetails.dependencies`で重複なしの確定依存先を取得。対象内クラスはClass IDで参照でき、未解決は含まない。File／Scopeの集計に個別依存先を重複集約しない |
+| API-R06 | 境界 | 循環なし・1群・独立2群を解析する | Scopeの`DependencyCyclesMetricDetails.groups`はFile IDを参照し、各群は異なる2件以上。群内・群間で重複なし。`value`は群数と一致し、循環なしでは`0`と`[]` |
+| API-R07 | 境界 | ファイル間重複・行範囲の重なり・SLOC=0を解析する | File／Scopeの`DuplicationMetricDetails`で`sloc`・`duplicated_sloc`を取得。Scopeは成功ファイルの合計。各行は1回だけ計数し、分母0では重複SLOC=0・率`None`と理由 |
+| API-R08 | 境界 | 関数なしのCCとSLOC、および固有詳細がない指標を`to_dict()`で変換する | Python上の適用対象外フィールドは`None`。JSON辞書ではSLOCのaverage/maximum等の適用対象外項目と`details=None`を省略し、適用対象だが計測不能のCC average/maximumは`None`と理由を保持 |
+| API-R09 | 正常 | 正常・空・partial・未解決の解析結果と、非互換・partialを含む比較結果を`to_dict()`にする | 標準JSONとして変換できる辞書を返し、公開フィールド名・数値精度・詳細・状態を保持。比較辞書のbefore/afterは完全なAnalysis構造。表示丸めはしない |
+| API-R10 | 副作用 | 両結果の`to_dict()`で返された辞書の値、入れ子のリスト・辞書、before/afterを変更する | 元の結果の計測値・詳細・エラー・未解決・メタデータを変更しない |
+| API-R11 | 正常 | 解析結果を`to_dict()`→標準JSON保存→`load_analysis_result()`、および`AnalysisResult.from_dict()`で復元する | Scope、全単位の計測値、定義位置・親子関係、詳細、エラー、未解決、モデル・設定・版、状態を保持。正常・空・partial・未解決の各結果で確認する |
+
+## 保存済み解析結果の読み込み
+
+根拠：[Python API — load_analysis_result / from_dict](../../../docs/features/code-analysis/python-api.md)。
+保存ファイルはCLI生成JSONまたは公開`to_dict()`の辞書を標準JSONとして保存して用意する。
+
+| ID | 種別 | 条件・操作 | 期待結果 |
+|---|---|---|---|
+| API-L01 | 正常 | `str`・`Path`、相対・絶対パス、日本語・空白入りパスから有効なJSONを読み込む | `AnalysisResult`を返し、保存された情報を復元する |
+| API-L02 | 回帰 | 保存後に元ソースを変更・削除し、保存JSONのキー順も変更して読み込む | 保存値と条件を復元する。元ソースにアクセスできなくても読み込め、キー順に依存しない |
+| API-L03 | 異常 | 存在しないファイル／読み取り不可のファイルを読み込む | 順に`FileNotFoundError`／`PermissionError`を送出する |
+| API-L04 | 異常 | 不正JSONを読み込む。またComparison Result・非対応スキーマを保存JSONと辞書で読み込み・`from_dict()`の各入口に渡す | `ValueError`を送出する。空結果や比較不能として処理しない |
+| API-L05 | 異常 | Analysisとして必要な構造を壊した辞書・JSON（例：`scope`欠落、`details.files`が配列でない）を`from_dict()`・読み込みに渡す | いずれも`ValueError`を送出する。任意項目や互換性情報の欠落の許容範囲は末尾の確認事項とする |
+| API-L06 | 境界 | 対応スキーマだが計測定義版が未知・非互換の結果を復元して比較する | 構造の検証と計測モデルの互換性判定を区別し、読み込めた指標の比較不能理由を比較結果に保持する |
 
 ## CLIとの適合性
 
@@ -253,8 +289,7 @@ SonarSourceに委ねられたCogの論理演算子・再帰・ネスト関数・
 
 | 項目 | 検証したいケース・未確定点 |
 |---|---|
-| 公開APIの指定方法 | 明示的除外・Git ignore適用の引数名と型、保存JSONの復元・検証の入口。復元失敗の例外型 |
-| 保存結果の検証境界 | 不正JSON、Comparison Result、非対応スキーマを拒否すること。必須項目・型の一覧と、比較情報不足として許容する欠落範囲 |
+| 保存結果の検証境界 | 公開フィールドの型・構造と明示済みの読込エラーはAPI-L04〜L05で検証する。任意フィールドの省略、欠損参照ID、比較情報不足として許容する欠落範囲の詳細は未確定 |
 | 全件失敗・探索失敗 | 選択されたファイル全件が失敗した場合の状態、途中のディレクトリ探索失敗の扱い |
 | 直接指定 | シンボリックリンク、除外条件・ignoreに一致する単一ファイルを直接指定したときの扱い |
 | SLOCの外部モデル | docstring・単独複数行文字列・代入する複数行文字列・コードと同居する文字列のRadon分類と採用モデル版 |
@@ -264,7 +299,7 @@ SonarSourceに委ねられたCogの論理演算子・再帰・ネスト関数・
 
 ## 設計レビュー時の確認
 
-- すべての実装済みケースが公開APIから実行されること。
+- すべての実装済みケースが公開APIから実行されること。公開モデルの型・属性は契約として確認し、非公開型・内部呼び出し・IDの内部形式を検証しないこと。
 - ケース群内の入力を省略していないこと。上表の集計単位・項目の各組も検証すること。
 - 成功値だけでなく、対象集合・詳細・エラー・未解決・状態を確認すること。
 - 未確定事項を、実装が現在返す値で埋めていないこと。
