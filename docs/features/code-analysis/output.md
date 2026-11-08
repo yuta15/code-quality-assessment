@@ -101,77 +101,14 @@ JSONは、解析結果を機械可読な形式で表現するための出力形�
 - 数値はJSONの数値として表現し、表示目的の丸めは行いません。数値型による表現精度の限界はあります。
 - 計測不能な値は`null`として表現します。
 - 計測不能の理由を別途保持します。
-- Duplication Rateなどの割合指標は、`%`記号を付けず、0〜100の数値で表現します。
-- Comparisonの`change_rate`も`%`記号を付けない数値ですが、負数や100を超える値を取り得ます。割合指標の範囲制約を`change_rate`には適用しません。
-- 割合指標の`difference`はパーセントポイント単位の数値とします。
+- Duplication Rateなどの割合指標は`%`記号を付けず、0〜100の数値で表現します。比較時の変化率（`change_rate`）は負数や100を超える値も取り得ます。
+- 割合指標の差分（`difference`）はパーセントポイント単位で表現します。
 - 計測対象が存在しない場合は、共通仕様に従って0または`null`を返します。
 - ファイル・関数・クラスの詳細結果を保持します。
 - エラーや未解決情報を保持します。
 - JSONの構造を識別するスキーマバージョンを含めます。
 
 出力順序に依存しない利用ができるよう、各指標は識別子によって区別します。
-
-### Analysis Result Schema
-
-Analysis Resultのトップレベルには、`schema_version`、`type`、`status`、`scope`、`metrics`、`details`、`errors`、`unresolved`、`metadata`を保持します。これらのJSON上の構造と型は[Python API Reference](./python-api.md)の`AnalysisResult`および関連データモデルに対応します。
-
-- `scope`は`path`と`file_count`を持ちます。`file_count`は選択された対象ファイル数を表し、個別ファイルの解析に失敗していても対象数から除きません。
-- `metrics`は指標識別子をキーとし、Analysis Scopeの`MetricResult`を保持します。
-- `details`は`files`、`classes`、`functions`の3つの配列を持つフラットな構造です。各配列の要素は`FileDetail`、`ClassDetail`、`FunctionDetail`に対応します。
-- `errors`は`AnalysisError`の配列、`unresolved`は`UnresolvedReference`の配列です。該当情報がない場合は空配列とします。
-- `metadata`は`tool_version`、指標ごとの`measurement_models`、解析全体の`settings`を保持します。
-
-#### Detail Entries
-
-| 配列 | 要素に含めるフィールド | 関連付け |
-|---|---|---|
-| `details.files` | `id`、`path`、`metrics` | 各ファイルのIDは解析結果内で一意 |
-| `details.classes` | `id`、`file_id`、`parent_id`、`name`、`line`、`column`、`metrics` | `file_id`はファイルを、`parent_id`は直接の親定義を参照 |
-| `details.functions` | `id`、`file_id`、`parent_id`、`name`、`line`、`column`、`metrics` | `file_id`はファイルを、`parent_id`は直接の親定義を参照 |
-
-`parent_id`はファイル直下の定義では`null`とします。親が存在する場合は`details.classes`または`details.functions`に存在するIDを参照します。ID文字列の内部形式は固定せず、同一結果内での一意性と参照整合性を保証します。定義位置は行番号1始まり、列番号0始まりのUTF-8バイトオフセットで表します。個別定義を重複して格納しません。
-
-#### Metric Result and Metric-specific Details
-
-`MetricResult`は計測単位ごとに`total`、`average`、`maximum`、`value`、`unavailable_reason`、`details`を表現します。適用対象外の集計項目はJSONに含めず、適用対象で計測不能な項目は`null`とその理由を出力します。指標固有の詳細が存在しない場合は`details`を省略します。
-
-| 指標・単位 | `details`の構造 | 保持する情報 |
-|---|---|---|
-| CBO（Class） | `{"dependencies": ["..."]}` | 確定した依存先クラスの一意な識別子 |
-| Fan-out（File） | `{"dependencies": ["..."]}` | 確定した依存先モジュールの一意な識別子 |
-| Dependency Cycles（Analysis Scope） | `{"groups": [["...", "...", "..."]]}` | 循環依存グループごとの構成ファイルID |
-| Duplication Rate（File・Analysis Scope） | `{"sloc": 100, "duplicated_sloc": 20}` | 分母のSLOCと重複SLOC |
-
-CBOとFan-outの依存先一覧は、それぞれClassとFileの詳細結果から取得します。未解決依存は確定一覧に含めず、`unresolved`で対象・指標・理由を識別します。Dependency Cyclesの`value`は`groups`の要素数と一致し、循環がない場合は`0`と空配列です。
-
-Duplication Rateの`value`は`duplicated_sloc / sloc × 100`です。`sloc=0`の場合、`value`は`null`と理由を保持し、`details`には`sloc=0`と`duplicated_sloc=0`を保持します。Analysis Scopeの重複率は成功ファイルのSLOCと重複SLOCを合計して算出し、ファイル率の単純平均にはしません。
-
-以下は、指標固有の詳細部分を抜粋した例です。これらはそれぞれの計測単位に配置します。
-
-```json
-{
-  "cbo": {
-    "value": 1,
-    "details": {"dependencies": ["class-id"]}
-  },
-  "dependency_cycles": {
-    "value": 1,
-    "details": {"groups": [["file-a-id", "file-b-id"]]}
-  },
-  "duplication_rate": {
-    "value": 20.0,
-    "details": {"sloc": 100, "duplicated_sloc": 20}
-  }
-}
-```
-
-### Comparison Result Schema
-
-Comparison Resultは`schema_version`、`type`、`status`、`before`、`after`、`differences`、`incompatible_metrics`、`metadata`を保持します。`before`と`after`は上記のAnalysis Result全体と同じ構造であり、詳細・エラー・未解決・計測条件を省略しません。
-
-`differences`は指標識別子と集計項目をキーとして、`before`、`after`、`difference`、`change_rate`の数値または`null`を保持します。比較不能な指標・集計項目は`incompatible_metrics`で`metric`、`aggregation`（指標全体の場合は`null`）、`reason`を保持します。同じ指標でも比較可能な集計項目の差分は算出します。
-
-`metadata`は`settings`を保持します。指標の互換性・差分計算・`null`の扱いは[Comparison](./comparison.md)に従います。
 
 ### Analysis Example
 
@@ -228,11 +165,11 @@ Comparison Resultは`schema_version`、`type`、`status`、`before`、`after`、
 
 この例では、`metrics`にAnalysis Scope全体の集計値を格納しています。
 
-`details`には、各ファイル・クラス・関数の計測結果を独立した配列として格納し、`file_id`と`parent_id`で関係付けます。
+`details`には、ファイル・クラス・関数の計測結果をそれぞれ`files`・`classes`・`functions`に格納します。各要素は独立したレコードとして保持し、`file_id`・`parent_id`で所属関係を表します。
 
-各計測値は指標の識別子と集計方法によって識別できるものとします。
+各計測値は指標の識別子と集計方法によって識別できるものとします。CBO・Fan-outの依存先、Dependency Cyclesの構成モジュール、Duplication RateのSLOC・Duplicated SLOCなど、指標固有の情報は計測値の`details`に格納します。必要な詳細がない指標では、このフィールドを省略します。
 
-このAnalysis Exampleの`details`にある空配列は、詳細レコードを省いた**抜粋例**です。`file_count=2`の完全な解析結果では、解析に成功したファイルの`FileDetail`を`details.files`に含め、クラス・関数が存在する場合はそれぞれ`details.classes`・`details.functions`にも格納します。
+この例の`details`の空配列は、詳細レコードを省いた抜粋表現です。実際の出力では、解析に成功したファイルの詳細を含め、該当するクラス・関数も保持します。各フィールドの型と参照関係は[Python API Reference](./python-api.md)に従います。
 
 ### Unavailable Metric Example
 
@@ -251,6 +188,31 @@ Comparison Resultは`schema_version`、`type`、`status`、`before`、`after`、
 エラーや未解決の依存関係が存在する場合も、該当する情報を計測結果から識別できるものとします。未解決情報は指標識別子と計測対象に対応付けます。
 
 `measurement_models`では各指標の`definition_version`（計測定義のバージョン）と`settings`（計測値に影響する設定）を記録します。例中のバージョン値は構造を示すための例示です。
+
+指標固有の詳細は、次のように出力します。CBOはClass、Fan-outはFile、Dependency CyclesはAnalysis Scope、Duplication RateはFile・Analysis Scopeの計測結果に配置します。
+
+```json
+{
+  "cbo": {
+    "value": 1,
+    "details": {"dependencies": ["class-id"]}
+  },
+  "fan_out": {
+    "value": 1,
+    "details": {"dependencies": ["module-id"]}
+  },
+  "dependency_cycles": {
+    "value": 1,
+    "details": {"groups": [["file-a-id", "file-b-id"]]}
+  },
+  "duplication_rate": {
+    "value": 20.0,
+    "details": {"sloc": 100, "duplicated_sloc": 20}
+  }
+}
+```
+
+上記は各指標の部分例であり、実際には各計測単位に対応する`metrics`内に保持します。未解決の依存先は確定依存先の一覧には含めず、`unresolved`に記録します。
 
 ### Comparison Example
 
@@ -302,7 +264,7 @@ Comparison Resultは`schema_version`、`type`、`status`、`before`、`after`、
     }
   },
   "incompatible_metrics": [],
-  "metadata": {}
+  "metadata": {"settings": {}}
 }
 ```
 
@@ -310,7 +272,7 @@ Comparison Resultは`schema_version`、`type`、`status`、`before`、`after`、
 
 比較不能な指標については、差分を算出せず、理由を保持します。
 
-BeforeとAfterの解析結果は、省略せずAnalysis Resultの構造全体を保持します。このComparison Exampleにおける`details`の空配列は詳細レコードを省いた抜粋表現です。実際の出力では`files`、`classes`、`functions`の各配列に該当する詳細を保持します。
+BeforeとAfterの解析結果は、省略せずAnalysis Resultの構造全体を保持します。例中の`details`の空配列は詳細レコードを省いた抜粋表現であり、実際の解析結果ではファイル・クラス・関数の詳細を含めます。
 
 ### Schema Compatibility
 
@@ -462,7 +424,7 @@ cqa compare ./before ./after --format json --output comparison.json
 - 出力ファイルの拡張子だけで出力形式を変更しません。
 - 出力形式は`--format`の指定を優先します。
 - `--output`を省略した場合は標準出力へ出力します。
-- `--output`を指定した場合はstdoutを空とし、ファイル保存の成功通知もstdoutには出力しません。診断はstderrに出力します。
+- `--output`を指定した場合はstdoutに結果や保存完了メッセージを出力しません。診断メッセージはstderrに出力します。
 
 ## Error Output
 
