@@ -67,6 +67,8 @@ Python APIでは、計測結果や比較結果を構造化されたPythonデー�
 
 差分の計算方法と比較条件は[Comparison](./comparison.md)に従います。
 
+`before`・`after`は、それぞれ完全なAnalysis Resultと同じデータ構造を使用し、計測条件・エラー・未解決情報を含めて保持します。
+
 ## Result Status
 
 解析結果には、結果の完全性を示す状態を付与します。
@@ -82,6 +84,8 @@ Python APIでは、計測結果や比較結果を構造化されたPythonデー�
 
 計測不能な指標については、`null`とその理由を保持します。
 
+`status`はファイル解析の成否を表すもので、個々の指標の完全性を保証しません。未解決の情報は該当する指標と計測対象に対応付けて保持し、確定した範囲だけから算出した値を識別できるようにします。
+
 比較結果では、BeforeまたはAfterに`partial`が含まれる場合、比較結果も`partial`とします。
 
 ## JSON
@@ -94,7 +98,7 @@ JSONは、解析結果を機械可読な形式で表現するための出力形�
 
 - UTF-8で出力します。
 - JSONとして有効な構造を出力します。
-- 数値はJSONの数値として表現します。
+- 数値はJSONの数値として表現し、表示目的の丸めは行いません。数値型による表現精度の限界はあります。
 - 計測不能な値は`null`として表現します。
 - 計測不能の理由を別途保持します。
 - パーセント値は`%`記号を付けず、0〜100の数値で表現します。
@@ -141,7 +145,12 @@ JSONは、解析結果を機械可読な形式で表現するための出力形�
   "unresolved": [],
   "metadata": {
     "tool_version": "1.0.0",
-    "measurement_models": {},
+    "measurement_models": {
+      "sloc": {"definition_version": "1", "settings": {}},
+      "function_count": {"definition_version": "1", "settings": {}},
+      "cyclomatic_complexity": {"definition_version": "1", "settings": {}},
+      "duplication_rate": {"definition_version": "1", "settings": {"minimum_match_tokens": 50}}
+    },
     "settings": {}
   }
 }
@@ -169,7 +178,9 @@ JSONは、解析結果を機械可読な形式で表現するための出力形�
 }
 ```
 
-エラーや未解決の依存関係が存在する場合も、該当する情報を計測結果から識別できるものとします。
+エラーや未解決の依存関係が存在する場合も、該当する情報を計測結果から識別できるものとします。未解決情報は指標識別子と計測対象に対応付けます。
+
+`measurement_models`では各指標の`definition_version`（計測定義のバージョン）と`settings`（計測値に影響する設定）を記録します。例中のバージョン値は構造を示すための例示です。
 
 ### Comparison Example
 
@@ -181,19 +192,33 @@ JSONは、解析結果を機械可読な形式で表現するための出力形�
   "type": "comparison",
   "status": "complete",
   "before": {
-    "scope": "./before",
-    "metrics": {
-      "sloc": {
-        "total": 200
-      }
+    "schema_version": "1",
+    "type": "analysis",
+    "status": "complete",
+    "scope": {"path": "./before", "file_count": 1},
+    "metrics": {"sloc": {"total": 200}},
+    "details": {"files": []},
+    "errors": [],
+    "unresolved": [],
+    "metadata": {
+      "tool_version": "1.0.0",
+      "measurement_models": {"sloc": {"definition_version": "1", "settings": {}}},
+      "settings": {}
     }
   },
   "after": {
-    "scope": "./after",
-    "metrics": {
-      "sloc": {
-        "total": 180
-      }
+    "schema_version": "1",
+    "type": "analysis",
+    "status": "complete",
+    "scope": {"path": "./after", "file_count": 1},
+    "metrics": {"sloc": {"total": 180}},
+    "details": {"files": []},
+    "errors": [],
+    "unresolved": [],
+    "metadata": {
+      "tool_version": "1.0.0",
+      "measurement_models": {"sloc": {"definition_version": "1", "settings": {}}},
+      "settings": {}
     }
   },
   "differences": {
@@ -215,7 +240,7 @@ JSONは、解析結果を機械可読な形式で表現するための出力形�
 
 比較不能な指標については、差分を算出せず、理由を保持します。
 
-BeforeとAfterの解析結果については、保存済み結果として必要な計測条件やエラー情報も保持できるものとします。
+BeforeとAfterの解析結果は、省略せずAnalysis Resultの構造全体を保持します。例中の`details.files`の空配列は詳細の省略表現であり、実際の解析結果では詳細を含めます。
 
 ### Schema Compatibility
 
@@ -239,6 +264,7 @@ Markdownは、解析結果を人が読みやすい表形式で共有するため
 - 計測対象と解析状態を明示します。
 - 集計値を表形式で表示します。
 - 計測不能な値は`N/A`と表示し、理由を確認できるようにします。
+- `—`は適用されない集計項目、`N/A`は計測不能、`0`は正常に計測されたゼロを表します。
 - 解析エラーや未解決情報が存在する場合は、その内容を表示します。
 - 各指標の意味や集計方法はJSONと同じものを使用します。
 
@@ -329,7 +355,7 @@ Consoleのレイアウト、罫線、色などの表示方法は、計測規則�
 
 ## Numerical Formatting
 
-JSONでは、計測値と差分の数値を表示用に丸めず保持します。
+JSONでは、計測値と差分の数値に表示目的の丸め処理を行いません。ただし、数値型による表現精度の限界はあります。
 
 MarkdownとConsoleでは、読みやすさのために表示上の丸めを行います。
 
@@ -362,7 +388,7 @@ cqa compare ./before ./after --format json --output comparison.json
 - 指定された出力形式に従って保存します。
 - 保存先のディレクトリが存在しない場合は、エラーとします。
 - ファイルへ書き込めない場合は、エラーとします。
-- 既存ファイルが存在する場合は上書きします。
+- 既存ファイルが存在する場合は上書きします。ただし、出力の生成・書き込みが完了した場合にのみ既存ファイルを置換し、途中で失敗した場合は既存ファイルの内容を保持します。
 - 出力ファイルの拡張子だけで出力形式を変更しません。
 - 出力形式は`--format`の指定を優先します。
 - `--output`を省略した場合は標準出力へ出力します。
@@ -391,6 +417,8 @@ Message: Target path does not exist.
 - 失敗したファイルのパスとエラー情報を含めます。
 - 解析状態を`partial`とします。
 - CLIでは非ゼロの終了コードを返します。
+
+ComparisonもBeforeまたはAfterが`partial`の場合は、結果を出力したうえで非ゼロ終了とします。比較可能な指標が0件でも、双方が`complete`で入力・出力にエラーがなければ正常終了とします。
 
 JSONを標準出力へ出力する場合、JSON以外の診断メッセージを同じ標準出力へ混在させません。
 
