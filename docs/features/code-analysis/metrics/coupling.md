@@ -12,7 +12,7 @@ Coupling Metricsは、ソースコード内のクラスやモジュールが、�
 |---|---|---|
 | CBO | クラスが依存する他クラスの数 | Class |
 | Fan-out | モジュールが依存する他モジュールの数 | File |
-| Dependency Cycles | モジュール間の循環依存グループ数 | Project |
+| Dependency Cycles | モジュール間の循環依存グループ数 | Analysis Scope |
 
 CBOはクラス間、Fan-outとDependency Cyclesはモジュール間の依存関係を対象とします。
 
@@ -268,7 +268,7 @@ Coupling Metricsは、指標の基本計測単位に応じて集計します。
 |---|---|---|---|---|
 | CBO | Class | ○ | ○ | クラスごとの依存先 |
 | Fan-out | File | ○ | ○ | モジュールごとの依存先 |
-| Dependency Cycles | Project | — | — | 循環依存グループ数と構成 |
+| Dependency Cycles | Analysis Scope | — | — | 循環依存グループ数と構成 |
 
 CBOの平均値・最大値は、対象範囲内のクラスの計測値から算出します。
 
