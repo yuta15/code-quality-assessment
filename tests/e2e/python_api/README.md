@@ -302,3 +302,39 @@ SonarSourceに委ねられたCogの論理演算子・再帰・ネスト関数・
 - ケース群内の入力を省略していないこと。上表の集計単位・項目の各組も検証すること。
 - 成功値だけでなく、対象集合・詳細・エラー・未解決・状態を確認すること。
 - 未確定事項を、実装が現在返す値で埋めていないこと。
+
+
+## テストコードの実行
+
+Python 3.14以上の環境で、公開APIを提供する`cqa`パッケージをインストールしてから実行する。
+API-I01〜I02には同じ環境の`cqa`コマンドも必要。
+パッケージやコマンドが見つからない場合はセットアップエラーとし、成功やスキップにしない。
+
+```bash
+uv run pytest tests/e2e/python_api -q
+uv run pytest tests/e2e/python_api --collect-only -q
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+```
+
+| ファイル | 主な対応ケース |
+|---|---|
+| `test_analyze.py` | API-A01〜A15 / M07: 入力・例外・部分失敗・副作用・再現性 |
+| `test_exclusions.py` | API-E01〜E13: glob・Git ignore・選択後の集計 |
+| `test_size_complexity.py` | API-S / X / M04: 規模・複雑度・重み付き集計 |
+| `test_coupling_cohesion.py` | API-C / H / R05〜R06: 依存・循環群・凝集度 |
+| `test_duplication.py` | API-D / R07: トークン比較・重複SLOC・部分解析 |
+| `test_compare.py` | API-P01〜P22: 比較計算・互換性・状態・入力保持 |
+| `test_models_serialization.py` | API-M01〜M06 / R01〜R11: 公開モデル・詳細参照・JSON変換 |
+| `test_loading.py` | API-L01〜L06: 保存結果の復元・構造検証 |
+| `test_cli_consistency.py` | API-I01〜I02: CLIとの整合性と独立した期待値 |
+
+各テストのdocstringに対応IDと観点を記載している。各行はケース群の対応表であり、
+仕様確認待ちの入力は上の「仕様確認後に期待値を確定するケース」に従う。
+外部ライブラリ・再エクスポート・判別不能なimport等の入力は、依存解決環境と規則の確定後に追加する。
+
+入力ファイル作成・実OSの権限制限・JSON破損データ・トークン境界の入力生成には、既存CLIテストの補助処理を再利用する。
+APIの返却値は公開モデルの属性を直接検証し、CLIを代替の解析入口にしない。
+共通補助処理を安定してimportするため、`tests`と`tests/e2e`をパッケージとしている。
+権限エラーをOS上で再現できない環境と、Gitやリンクの作成機能が利用できない環境では、該当テストだけ理由付きでスキップする。
