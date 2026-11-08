@@ -22,7 +22,7 @@ cqa analyze ./src
 
 2つのソースコードを解析し、Analysis Scope（指定した解析対象全体）の集計値を比較します。ファイル・関数・クラスの対応付けは行いません。保存済みのJSON解析結果も比較対象にできます。
 
- ```bash
+```bash
 cqa compare ./before ./after
 cqa compare --before-result ./before.json --after-result ./after.json
 cqa compare ./after --before-result ./before.json
