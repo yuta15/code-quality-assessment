@@ -6,10 +6,10 @@ Code Quality Assessment は、ソースコードの品質を複数の指標か�
 
 ## Features
 
-- **Code Analysis**：ソースコードの複雑度や規模などを定量的に計測
-- **Code Comparison**：異なる実装や変更前後の計測結果を比較
-- **Report Generation**：計測結果をJSONやMarkdownなどの形式で出力
-- **Extensibility**：計測指標や対応言語の追加に対応
+- **Code Analysis**：ソースコードの複雑度や規模、保守性などを定量的に計測
+  - 異なる実装や変更前後の計測結果を比較
+  - JSONやMarkdownなどの形式で結果を出力
+
 
 ## Usage
 
