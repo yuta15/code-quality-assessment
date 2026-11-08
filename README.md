@@ -13,13 +13,7 @@ Code Quality Assessment は、ソースコードの品質を複数の指標か�
 
 ## Usage
 
-CLIから任意のソースコードを指定して計測・比較できるインターフェースを提供する予定です。
-
-具体的なインストール方法やコマンドは、実装後に記載します。
-
-## Status
-
-現在開発中です。まずはPythonを対象とした静的解析と計測結果の比較機能の実装を目指しています。
+利用方法は[Code Analysisの利用ガイド](docs/features/code-analysis/usage.md)を参照してください。
 
 ## Development
 
