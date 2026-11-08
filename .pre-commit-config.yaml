@@ -1,0 +1,25 @@
+minimum_pre_commit_version: "4.7.0"
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint
+        entry: uv run --locked ruff check --fix
+        language: unsupported
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: Ruff format
+        entry: uv run --locked ruff format
+        language: unsupported
+        types_or: [python, pyi]
+        require_serial: true
+      - id: pyright
+        name: Pyright strict type check
+        entry: uv run --locked pyright
+        language: unsupported
+        types_or: [python, pyi]
+        pass_filenames: false
+        require_serial: true

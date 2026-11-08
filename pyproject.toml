@@ -4,4 +4,68 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pre-commit>=4.7.0",
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+indent-width = 4
+respect-gitignore = true
+force-exclude = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+# Formatting is handled by ruff format; avoid conflicting style rules.
+ignore = [
+    "COM812", "COM819",
+    "CPY001", # Copyright policy has not been defined for this project.
+    "D203", "D206", "D300",
+    "E111", "E114", "E117",
+    "Q",
+    "W191",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 10
+max-returns = 5
+max-statements = 40
+
+[tool.ruff.lint.per-file-ignores]
+# Test assertions are expected; test names describe the behavior under test.
+"tests/**/*.py" = ["D", "S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.pyright]
+include = ["."]
+exclude = ["**/__pycache__", ".git", ".venv", "build", "dist"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+enableTypeIgnoreComments = false
+reportCallInDefaultInitializer = "error"
+reportDeprecated = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportUninitializedInstanceVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnreachable = "error"
+reportUnusedCallResult = "error"
