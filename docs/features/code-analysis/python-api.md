@@ -437,6 +437,7 @@ class MetricResult:
     maximum: int | float | None = None
     value: int | float | None = None
     unavailable_reason: str | None = None
+    details: MetricDetails | None = None
 ```
 
 #### Attributes
@@ -448,6 +449,9 @@ class MetricResult:
 | `maximum` | `int \| float \| None` | 最大値 |
 | `value` | `int \| float \| None` | 個別計測値 |
 | `unavailable_reason` | `str \| None` | 計測不能な理由 |
+| `details` | `MetricDetails \| None` | 指標固有の詳細情報 |
+
+`details`には、依存先一覧、循環依存グループ、重複行数など、単一の数値では表現できない情報を保持します。指標に固有の詳細情報がない場合は`None`とします。
 
 #### 集計項目の取り扱い
 
@@ -481,6 +485,85 @@ SLOCのように合計値のみを提供する指標では、適用対象外の`
   }
 }
 ```
+
+### `MetricDetails`
+
+指標固有の詳細情報の共通型です。
+
+```python
+MetricDetails: TypeAlias = (
+    CouplingMetricDetails
+    | DependencyCyclesMetricDetails
+    | DuplicationMetricDetails
+)
+```
+
+`MetricResult.details`の型は、指標識別子に応じて決まります。
+
+| 指標 | 計測単位 | 詳細データ型 |
+|---|---|---|
+| CBO | Class | `CouplingMetricDetails` |
+| Fan-out | File | `CouplingMetricDetails` |
+| Dependency Cycles | Analysis Scope | `DependencyCyclesMetricDetails` |
+| Duplication Rate | File・Analysis Scope | `DuplicationMetricDetails` |
+
+CBO・Fan-outのFile・Analysis Scope集計には、個別要素の依存先を重複して集約しません。依存先は各Class・Fileの詳細結果から取得します。
+
+#### `CouplingMetricDetails`
+
+CBOおよびFan-outで確定できた依存先を保持します。
+
+```python
+@dataclass
+class CouplingMetricDetails:
+    dependencies: list[str]
+```
+
+| Name | Type | Description |
+|---|---|---|
+| `dependencies` | `list[str]` | 重複を除いた確定依存先の識別子 |
+
+CBOでは依存先クラス、Fan-outでは依存先モジュールを保持します。解析対象内のクラスは`ClassDetail.id`で参照します。解析対象外のクラスとモジュールは、識別できた依存先を一意に区別できる文字列で表現します。文字列の内部形式には依存しません。
+
+依存の方向は計測元から依存先への一方向です。未解決の参照はこの一覧に含めず、`AnalysisResult.unresolved`へ記録します。
+
+#### `DependencyCyclesMetricDetails`
+
+循環依存グループの構成モジュールを保持します。
+
+```python
+@dataclass
+class DependencyCyclesMetricDetails:
+    groups: list[list[str]]
+```
+
+| Name | Type | Description |
+|---|---|---|
+| `groups` | `list[list[str]]` | 強連結成分ごとの構成モジュールの識別子 |
+
+各文字列は`FileDetail.id`を参照します。1グループには2つ以上の異なるモジュールを含めます。各グループに含まれるモジュールは重複せず、同じモジュールが複数のグループに現れることもありません。
+
+循環依存グループ数は`MetricResult.value`に保持します。`groups`の要素数と一致します。循環依存が存在しない場合は`value=0`、`groups=[]`です。
+
+#### `DuplicationMetricDetails`
+
+Duplication Rateの算出に使用したSLOCを保持します。
+
+```python
+@dataclass
+class DuplicationMetricDetails:
+    sloc: int
+    duplicated_sloc: int
+```
+
+| Name | Type | Description |
+|---|---|---|
+| `sloc` | `int` | 重複率の分母となるSLOC |
+| `duplicated_sloc` | `int` | 重複と判定されたSLOC対象行数 |
+
+`MetricResult.value`には百分率（0〜100）または計測不能時の`None`を保持します。`sloc`が0の場合も`duplicated_sloc=0`を保持し、率は`None`と理由を返します。
+
+ファイル単位では、他の解析対象ファイルとの重複も`duplicated_sloc`に含めます。Analysis Scope単位では、各成功ファイルの`sloc`・`duplicated_sloc`の合計を使用して重複率を算出します。重複SLOCは同じ行を二重計上しません。
 
 ### `MetricDifference`
 
@@ -649,6 +732,29 @@ JSONValue: TypeAlias = (
 ```
 
 各要素のフィールド名は対応する公開クラスの属性名と一致します。
+
+`MetricResult.details`が`None`の場合、JSONには`details`フィールドを出力しません。指標固有の詳細がある場合は、対応する詳細クラスのフィールドを`details`オブジェクト内に出力します。
+
+例えば、依存先・循環依存グループ・重複率の詳細は次の形で表します。
+
+```json
+{
+  "cbo": {
+    "value": 1,
+    "details": {"dependencies": ["class-id"]}
+  },
+  "dependency_cycles": {
+    "value": 1,
+    "details": {"groups": [["file-a-id", "file-b-id"]]}
+  },
+  "duplication_rate": {
+    "value": 20.0,
+    "details": {"sloc": 100, "duplicated_sloc": 20}
+  }
+}
+```
+
+この例は各指標のデータ構造を示したものであり、実際の出力ではCBOはClass、Dependency CyclesはAnalysis Scopeなど、定義された計測単位の結果に配置します。
 
 `list`はJSON配列、`None`は`null`として表現します。
 
