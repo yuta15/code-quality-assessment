@@ -20,7 +20,7 @@ Code Analysisでは、以下の5カテゴリの指標を提供します。
 | [Cohesion](./cohesion.md) | LCOM4 | クラス内のメソッド間の結び付き |
 | [Duplication](./duplication.md) | Duplication Rate | コードの重複状況 |
 
-各指標の計測方法、計算規則、境界条件については、カテゴリごとのドキュメントを参照してください。
+各指標の計測方法、計算規則、境界条件については、カテゴリごとのドキュメントを参照してください。計測モデルに固有の規則と、Code Analysisが独自に定義する規則は区別して扱います。
 
 ## Measurement Levels
 
@@ -45,24 +45,32 @@ Code Analysisでは、以下の5カテゴリの指標を提供します。
 
 | 指標 | Function | Class | File | Project |
 |---|:---:|:---:|:---:|:---:|
-| SLOC | — | — | ◎ | ○ |
-| Function Length | ◎ | ○ | ○ | ○ |
-| Function Count | — | ○ | ◎ | ○ |
-| Class Count | — | — | ◎ | ○ |
-| Cyclomatic Complexity | ◎ | ○ | ○ | ○ |
-| Cognitive Complexity | ◎ | ○ | ○ | ○ |
-| Nesting Depth | ◎ | ○ | ○ | ○ |
-| CBO | — | ◎ | ○ | ○ |
-| Fan-out | — | — | ◎ | ○ |
-| Dependency Cycles | — | — | — | ◎ |
-| LCOM4 | — | ◎ | ○ | ○ |
-| Duplication Rate | — | — | ○ | ◎ |
+| [SLOC](./size.md#sloc) | — | — | ◎ | ○ |
+| [Function Length](./size.md#function-length) | ◎ | ○ | ○ | ○ |
+| [Function Count](./size.md#function-count) | — | ○ | ◎ | ○ |
+| [Class Count](./size.md#class-count) | — | — | ◎ | ○ |
+| [Cyclomatic Complexity](./complexity.md#cyclomatic-complexity) | ◎ | ○ | ○ | ○ |
+| [Cognitive Complexity](./complexity.md#cognitive-complexity) | ◎ | ○ | ○ | ○ |
+| [Nesting Depth](./complexity.md#nesting-depth) | ◎ | ○ | ○ | ○ |
+| [CBO](./coupling.md#cbo) | — | ◎ | ○ | ○ |
+| [Fan-out](./coupling.md#fan-out) | — | — | ◎ | ○ |
+| [Dependency Cycles](./coupling.md#dependency-cycles) | — | — | — | ◎ |
+| [LCOM4](./cohesion.md#lcom4) | — | ◎ | ○ | ○ |
+| [Duplication Rate](./duplication.md#duplication-rate) | — | — | ○ | ◎ |
 
 - **◎**：指標を直接計測する単位
 - **○**：集計値または対象範囲から算出した値を提供する単位
 - **—**：対象外
 
 Projectは、解析対象に指定したファイルまたはディレクトリ全体を表します。
+
+### 集計対象の所属
+
+- 関数・クラスは定義箇所を一意に識別し、Project全体ではそれぞれ1回だけ計数します。
+- メソッドは定義元クラスに所属し、そのクラスが定義されているファイルにも所属します。
+- ネストした関数やローカルクラスは、ソースコード上の包含関係も保持します。ただし、上位粒度の集計では同じ定義を重複計上しません。
+- Class単位の関数集計には、そのクラスで直接定義されたメソッド（ネストしたクラスのメソッドを除く）を含めます。File・Project単位では、その範囲に定義されたすべての関数・メソッドを1回ずつ含めます。
+- 関数内にネストしたクラスのメソッドは、外側の関数の集計対象には含めません。
 
 ## Aggregation
 
@@ -106,7 +114,11 @@ Projectは、解析対象に指定したファイルまたはディレクトリ�
 | 計測できない | `null`と理由 |
 | 一部の情報を特定できない | 確定した値と未解決情報を区別 |
 
-一部のファイルで構文エラーや読み取りエラーが発生した場合は、正常に解析できたファイルの結果を集計し、部分的な解析結果であることを示します。
+一部のファイルで構文エラーや読み取りエラーが発生した場合は、正常に解析できたファイルの結果のみを集計し、解析対象全体の完全な計測結果ではないことを明示します。
+
+未解決の依存先など、一部を確定できなかった指標では、確定できた範囲の数値と未解決情報を併せて返します。この数値を完全な依存数として解釈してはいけません。`null`は対象が存在しない／計算不能である場合に使用し、部分的に算出できた数値を機械的に`null`へ置き換えません。
+
+比較する際は、計測モデル・設定に加えて、解析が完全に成功したかどうかと未解決情報の有無も確認できるものとします。
 
 個別指標の計測不能条件については、各カテゴリのドキュメントで定義します。
 
