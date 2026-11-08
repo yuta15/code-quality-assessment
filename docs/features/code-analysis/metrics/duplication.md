@@ -10,7 +10,7 @@ Duplication Metricsは、ソースコード内に同一のトークン列を持�
 
 | 指標 | 説明 | 基本計測単位 |
 |---|---|---|
-| Duplication Rate | 重複しているコード行が全体に占める割合 | Project |
+| Duplication Rate | 重複しているコード行が全体に占める割合 | Analysis Scope |
 
 重複の検出は、同一ファイル内および異なるファイル間を対象とします。
 
@@ -241,10 +241,10 @@ Duplication Rateは、解析対象全体のSLOCとDuplicated SLOCから算出し
 
 ファイル単位のDuplication Rateには、ほかの解析対象ファイルとの重複も反映します。
 
-Project単位のDuplication Rateは、ファイル単位の重複率を単純平均せず、対象全体の行数から再計算します。
+Analysis Scope単位のDuplication Rateは、ファイル単位の重複率を単純平均せず、対象全体の行数から再計算します。
 
 ```text
-Project Duplication Rate
+Analysis Scope Duplication Rate
   = Sum(Duplicated SLOC) / Sum(SLOC) × 100
 ```
 
